@@ -8,6 +8,8 @@ import numpy as np
 from torch.autograd import Variable
 import matplotlib.pyplot as plt
 import cog
+from cog import BasePredictor, Input
+from typing import Any
 
 sys.path.insert(0, "training")
 
@@ -26,7 +28,7 @@ MODEL_NAMES = {
 }
 
 
-class Predictor(cog.Predictor):
+class Predictor(BasePredictor):
     def setup(self):
         if torch.cuda.is_available():
             self.device = torch.device("cuda:0")
@@ -61,22 +63,13 @@ class Predictor(cog.Predictor):
 
         self.tags = np.load("split/mtat/tags.npy")
 
-    @cog.input("input", type=Path, help="Input audio file")
-    @cog.input(
-        "variant",
-        type=str,
-        default="Harmonic CNN",
-        options=MODEL_NAMES.keys(),
-        help="Model variant",
-    )
-    @cog.input(
-        "output_format",
-        type=str,
-        default="Visualization",
-        options=["Visualization", "JSON"],
-        help="Output either a bar chart visualization or a JSON blob",
-    )
-    def predict(self, input, variant, output_format):
+    def predict(self,
+                input: cog.Path = Input(description="Input audio file"),
+                variant: str = Input(description="Model variant", choices=MODEL_NAMES.keys(),
+                                     default="Harmonic CNN"),
+                output_format: str = Input(description="Output either a bar chart visualization or a JSON blob",
+                                           choices=["Visualization", "JSON"], default="Visualization")
+                ) -> Any:
         key = MODEL_NAMES[variant]
         model = self.models[key].eval()
         input_length = self.input_lengths[key]
@@ -90,7 +83,7 @@ class Predictor(cog.Predictor):
         print("x.max(), x.min(), x.mean()", x.max(), x.min(), x.mean())
         # asdf()
         out = model(x)
-        result = dict(zip(self.tags, out[0].detach().numpy().tolist()))
+        result = dict(zip(self.tags, out[0].detach().cpu().numpy().tolist()))
 
         if output_format == "JSON":
             return result
